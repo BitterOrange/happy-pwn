@@ -1,0 +1,63 @@
+#!/bin/bash
+
+MAIN_DIR="$(cd "$(dirname "$0")" && cd './../' && pwd)/"
+VERSION='2.31'
+BUILD='0ubuntu9.7_amd64'
+TARGET_DIR="$(pwd)/"
+TARGET_ELF="$TARGET_DIR./easy_heap"
+
+# Get unstripped libc
+echo "[O] Getting unstripped libc"
+GLIBC_DIR=("$MAIN_DIR""glibc-all-in-one/""$GLIBC_DIR""libs/$VERSION-$BUILD/")
+if [ ! -d $GLIBC_DIR ]; then
+    echo "[X] Glibc path of target version ($VERSION-$BUILD) doesn't exist."
+    echo "[X] Expected path: $GLIBC_DIR."
+    exit
+fi
+STRIPPED_LIBC=("$GLIBC_DIR""libc-$VERSION.so")
+if [ ! -f $STRIPPED_LIBC ]; then
+    echo "[X] Target stripped libc ($VERSION-$BUILD) doesn't exist."
+    echo "[X] Expected path: $STRIPPED_LIBC."
+    exit
+fi
+BUILD_ID=$(readelf -n $STRIPPED_LIBC)
+BUILD_ID="${BUILD_ID#*'Build ID: '}"
+BUILD_ID="${BUILD_ID::40}"
+echo "Build ID: $BUILD_ID"
+DEBUG_FILE=("$GLIBC_DIR"".debug/libc-$VERSION.so")
+if [ ! -f $DEBUG_FILE ]; then 
+    echo $BUILD_ID
+    echo "[X] Target debug file ($VERSION-$BUILD) doesn't exist."
+    echo "[X] Expected path: $DEBUG_FILE."
+    exit
+fi
+LD=("$GLIBC_DIR""ld-$VERSION.so")
+if [ ! -f $LD ]; then
+    echo "[X] Target interpreter ($VERSION-$BUILD) doesn't exist."
+    echo "[X] Expected path: $LD."
+    exit
+fi
+TARGET_LIBC=("$TARGET_DIR""libc-$VERSION.so")
+TARGET_LD=("$TARGET_DIR""ld-$VERSION.so")
+cp "$DEBUG_FILE" "$TARGET_LIBC"
+cp "$LD" "$TARGET_LD"
+eu-unstrip "$STRIPPED_LIBC" "$TARGET_LIBC"
+patchelf --add-needed "$TARGET_LIBC" --set-interpreter "$TARGET_LD" "$TARGET_ELF" 
+echo "[O] Successfilly untripped and patched the glibc."
+
+# Link glibc source code
+COMPILATION_DIR=$(readelf --string-dump=.debug_str "./libc-$VERSION.so" | grep "glibc-$VERSION" -m 1)
+COMPILATION_DIR=${COMPILATION_DIR#*']  /'}
+COMPILATION_DIR="${COMPILATION_DIR%$(echo "glibc-$VERSION/")*}"
+COMPILATION_DIR="./$COMPILATION_DIR"
+mkdir -p $COMPILATION_DIR
+GLIBC_SOURCE_DIR=("$MAIN_DIR""glibc-source-all/glibc-$VERSION/")
+if [ ! -d $GLIBC_SOURCE_DIR ]; then
+    echo "[X] Glibc source code path of target version ($VERSION-$BUILD) doesn't exist."
+    echo "[X] Expected path: $GLIBC_SOURCE_DIR."
+    exit
+fi
+echo "[O] Linking global glibc source code from $COMPILATION_DIR."
+ln -s "$GLIBC_SOURCE_DIR" "$COMPILATION_DIR"
+echo "[O] Successfully linked source code at ""$COMPILATION_DIR""glibc-$VERSION/."
+
