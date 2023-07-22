@@ -16,6 +16,7 @@ usage () {
 echo "happy-pwn - PWN initializing tool"
 echo "Powered by BitterOrange."
 
+# Decide ELF, LIBC and LD
 while test $# -gt 0; do
     case $1 in
     -a | --elf)
@@ -61,7 +62,6 @@ while test $# -gt 0; do
         ;;
     esac
 done
-
 MATCHED_ELF=()
 MATCHED_LIBC=()
 MATCHED_LD=()
@@ -131,13 +131,26 @@ if test -z $LD; then
     fi
 fi
 
-VERSION='2.31'
-BUILD='0ubuntu9.7_amd64'
-TARGET_ELF=''
+# Find correct glibc version
+VERSION_STRING=$(strings $LIBC | grep '2\.[0-9][0-9]-[0-9]ubuntu[0-9\.]*' -o) 
+VERSION=${VERSION_STRING%-*}
+ARCHITECTURE=$(objdump -a $ELF | grep -E 'elf64-x86-64|elf32-i386' -o)
+case $ARCHITECTURE in
+"elf64-x86-64")
+    LIBC_ARCH="amd64"
+    ;;
+"elf32-i386")
+    LIBC_ARCH="i386"
+    ;;
+*)
+    error "[X] Failed to decide architecture."
+    ;;
+esac
+BUILD="${VERSION_STRING#*-}_$LIBC_ARCH"
 # TARGET_DIR="$(pwd)/"
 # TARGET_ELF="$TARGET_DIR./easy_heap"
-echo $VERSION
-echo $BUILD
+echo "[O] Glibc version: $VERSION"
+echo "[O] Glibc build: $BUILD"
 exit 0
 
 # Get unstripped libc
