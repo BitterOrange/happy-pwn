@@ -1,48 +1,170 @@
 #!/bin/bash
 
 MAIN_DIR="$(cd "$(dirname "$0")" && cd './../' && pwd)/"
+
+error () {
+    echo $1
+    exit 1
+}
+
+usage () {
+    echo "Usage: $0 [-a=--elf <elf>] [-b=--libc <libc>] [-c=--ld <ld>]"
+    echo "       $0 --help (for help)"
+    exit 3
+}
+
+echo "happy-pwn - PWN initializing tool"
+echo "Powered by BitterOrange."
+
+while test $# -gt 0; do
+    case $1 in
+    -a | --elf)
+        if test $ELF; then
+            error "[X] ELF is redeclared. Please check your command."
+        fi
+        ELF=$2
+        if [ ! -f $ELF ]; then
+            error "[X] ELF $ELF does not exist. Please check your file."
+        fi
+        echo "[O] ELF: $ELF"
+        shift 2
+        ;;
+    -b | --libc)
+        if test $LIBC; then
+            error "[X] LIBC is redeclared. Please check your command."
+        fi
+        LIBC=$2
+        if [ ! -f $LIBC ]; then
+            error "[X] LIBC $LIBC does not exist. Please check your file."
+        fi
+        echo "[O] LIBC: $LIBC"
+        shift 2
+        ;;
+    -c | --ld)
+        if test $LD; then
+            error "[X] LD is redeclared. Please check your command."
+        fi
+        LD=$2
+        if [ ! -f $LD ]; then
+            error "[X] LD $LD does not exist. Please check your file."
+        fi
+        echo "[O] LD: $LD"
+        shift 2
+        ;;
+    -h | --help)
+        usage
+        shift
+        ;;
+    -* | --*) shift;
+        usage
+        break 
+        ;;
+    esac
+done
+
+MATCHED_ELF=()
+MATCHED_LIBC=()
+MATCHED_LD=()
+for i in ./* ; do
+    # Check if the file is ELF file
+    if [ ! -f $i ] || [[ $(head -c 4 $i) != ?"ELF" ]]; then
+        continue
+    fi
+    filename=$(basename $i)
+    if [[ ${filename,,} = "libc"* ]]; then
+        if test -z $LIBC; then
+            MATCHED_LIBC+=($i)
+            echo "[!] Matched LIBC: $i"
+        fi
+    elif [[ ${filename,,} = "ld"* ]]; then
+        if test -z $LD; then
+            MATCHED_LD+=($i)
+            echo "[!] Matched LD: $i"
+        fi
+    else
+        if test -z $ELF; then
+            MATCHED_ELF+=($i)
+            echo "[!] Matched ELF: $i"
+        fi
+    fi
+done
+if test -z $ELF; then
+    if test ${#MATCHED_ELF[@]} -eq 0; then
+        error "[X] Failed to match ELF. Please use option \"-a <elf>\" to specify one."
+    elif test ${#MATCHED_ELF[@]} -gt 1; then
+        echo "[X] Multiple ELFs are found:"
+        for i in ${MATCHED_ELF[@]}; do
+            echo "- $i"
+        done
+        error "[X] Please use option \"-a <elf>\" to specify one."
+    else
+        ELF=${MATCHED_ELF[0]}
+        echo "[O] Decided ELF: $ELF"
+    fi
+fi
+if test -z $LIBC; then
+    if test ${#MATCHED_LIBC[@]} -eq 0; then
+        error "[X] Failed to match LIBC. Please use option \"-b <libc>\" to specify one."
+    elif test ${#MATCHED_LIBC[@]} -gt 1; then
+        echo "[X] Multiple LIBCs are found:"
+        for i in ${MATCHED_LIBC[@]}; do
+            echo "- $i"
+        done
+        error "[X] Please use option \"-b <libc>\" to specify one."
+    else
+        LIBC=${MATCHED_LIBC[0]}
+        echo "[O] Decided LIBC: $LIBC"
+    fi
+fi
+if test -z $LD; then
+    if test ${#MATCHED_LD[@]} -eq 0; then
+        error "[X] Failed to match LD. Please use option \"-c <ld>\" to specify one."
+    elif test ${#MATCHED_LD[@]} -gt 1; then
+        echo "[X] Multiple LDs are found:"
+        for i in ${MATCHED_LD[@]}; do
+            echo "- $i"
+        done
+        error "[X] Please use option \"-c <ld>\" to specify one."
+    else
+        LD=${MATCHED_LD[0]}
+        echo "[O] Decided LD: $LD"
+    fi
+fi
+
 VERSION='2.31'
 BUILD='0ubuntu9.7_amd64'
-TARGET_DIR="$(pwd)/"
-TARGET_ELF="$TARGET_DIR./easy_heap"
+TARGET_ELF=''
+# TARGET_DIR="$(pwd)/"
+# TARGET_ELF="$TARGET_DIR./easy_heap"
+echo $VERSION
+echo $BUILD
+exit 0
 
 # Get unstripped libc
 echo "[O] Getting unstripped libc"
-GLIBC_DIR=("$MAIN_DIR""glibc-all-in-one/""$GLIBC_DIR""libs/$VERSION-$BUILD/")
+GLIBC_DIR=("${MAIN_DIR}glibc-all-in-one/${GLIBC_DIR}libs/$VERSION-$BUILD/")
 if [ ! -d $GLIBC_DIR ]; then
     echo "[X] Glibc path of target version ($VERSION-$BUILD) doesn't exist."
     echo "[X] Expected path: $GLIBC_DIR."
     exit
 fi
-STRIPPED_LIBC=("$GLIBC_DIR""libc-$VERSION.so")
-if [ ! -f $STRIPPED_LIBC ]; then
+UNSTRIPPED_LIBC=("${GLIBC_DIR}.unstripped/libc-$VERSION.so")
+if [ ! -f $UNSTRIPPED_LIBC ]; then
     echo "[X] Target stripped libc ($VERSION-$BUILD) doesn't exist."
-    echo "[X] Expected path: $STRIPPED_LIBC."
-    exit
+    echo "[X] Expected path: $UNSTRIPPED_LIBC."
+    exit 1
 fi
-BUILD_ID=$(readelf -n $STRIPPED_LIBC)
-BUILD_ID="${BUILD_ID#*'Build ID: '}"
-BUILD_ID="${BUILD_ID::40}"
-echo "Build ID: $BUILD_ID"
-DEBUG_FILE=("$GLIBC_DIR"".debug/libc-$VERSION.so")
-if [ ! -f $DEBUG_FILE ]; then 
-    echo $BUILD_ID
-    echo "[X] Target debug file ($VERSION-$BUILD) doesn't exist."
-    echo "[X] Expected path: $DEBUG_FILE."
-    exit
-fi
-LD=("$GLIBC_DIR""ld-$VERSION.so")
-if [ ! -f $LD ]; then
+UNSTRIPPED_LD=("${GLIBC_DIR}.unstripped/ld-$VERSION.so")
+if [ ! -f $UNSTRIPPED_LD ]; then
     echo "[X] Target interpreter ($VERSION-$BUILD) doesn't exist."
-    echo "[X] Expected path: $LD."
-    exit
+    echo "[X] Expected path: $UNSTRIPPED_LD."
+    exit 1
 fi
-TARGET_LIBC=("$TARGET_DIR""libc-$VERSION.so")
-TARGET_LD=("$TARGET_DIR""ld-$VERSION.so")
-cp "$DEBUG_FILE" "$TARGET_LIBC"
-cp "$LD" "$TARGET_LD"
-eu-unstrip "$STRIPPED_LIBC" "$TARGET_LIBC"
-patchelf --add-needed "$TARGET_LIBC" --set-interpreter "$TARGET_LD" "$TARGET_ELF" 
+TARGET_LIBC_LINK=("./libc-$VERSION.so")
+TARGET_LD_LINK=("./ld-$VERSION.so")
+ln $TARGET_LIBC_LINK $UNSTRIPPED_LIBC
+ln $TARGET_LD_LINK $UNSTRIPPED_LD
+patchelf --add-needed $TARGET_LIBC_LINK --set-interpreter $TARGET_LD_LINK $TARGET_ELF
 echo "[O] Successfilly untripped and patched the glibc."
 
 # Link glibc source code
