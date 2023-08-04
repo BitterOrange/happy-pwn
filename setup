@@ -1,0 +1,28 @@
+#!/bin/bash
+
+MAIN_DIR="$(cd "$(dirname "$0")" && pwd)/"
+echo "[!] Here is $MAIN_DIR"
+
+cd "${MAIN_DIR}glibc-all-in-one/"
+./setup
+if test $? -ne 0; then
+    echo "[X] Failed to setup glibc-all-in-one."
+    exit 1
+fi
+
+cd "${MAIN_DIR}glibc-source-all/"
+./download_all
+if test $? -ne 0; then
+    echo "[X] Failed to setup glibc-all-in-one."
+    exit 1
+fi
+
+BINARY_PATH=${MAIN_DIR}bin/
+echo "[O] Congratulation! Installation is done."
+echo "[!] Please don't forget to set your environment variables to '$BINARY_PATH' like:"
+echo ""
+echo "ENV_COMMAND=\"\n\""
+echo "ENV_COMMAND+=\"# Added by BitterOrange's happy-pwn\n\""
+echo "ENV_COMMAND+=\"PATH=\\\"\\\$PATH:$BINARY_PATH\\\"\""
+echo "echo -e \$ENV_COMMAND >> ~/.bashrc"
+exit 0
