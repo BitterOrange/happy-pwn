@@ -8,7 +8,8 @@ error () {
 }
 
 usage () {
-    echo "Usage: $0 [-a=--elf <elf>] [-b=--libc <libc>] [-c=--ld <ld>]"
+    # echo "Usage: $0 [-a=--elf <elf>] [-b=--libc <libc>] [-c=--ld <ld>]"
+    echo "Usage: $0 [-a=--elf <elf>] [-b=--libc <libc>]"
     echo "       $0 --help (for help)"
     exit 3
 }
@@ -41,33 +42,33 @@ while test $# -gt 0; do
         echo "[O] LIBC: $LIBC"
         shift 2
         ;;
-    -c | --ld)
-        if test $LD; then
-            error "[X] LD is redeclared. Please check your command."
-        fi
-        LD=$2
-        if [ ! -f $LD ]; then
-            error "[X] LD $LD does not exist. Please check your file."
-        fi
-        echo "[O] LD: $LD"
-        shift 2
-        ;;
+    # -c | --ld)
+    #     if test $LD; then
+    #         error "[X] LD is redeclared. Please check your command."
+    #     fi
+    #     LD=$2
+    #     if [ ! -f $LD ]; then
+    #        error "[X] LD $LD does not exist. Please check your file."
+    #     fi
+    #     echo "[O] LD: $LD"
+    #     shift 2
+    #     ;;
     -h | --help)
         usage
         shift
         ;;
-    -* | --*) shift;
+    *)
         usage
-        break 
+        shift
         ;;
     esac
 done
 MATCHED_ELF=()
 MATCHED_LIBC=()
-MATCHED_LD=()
+# MATCHED_LD=()
 for i in ./* ; do
     # Check if the file is ELF file
-    if [ ! -f $i ] || [[ $(head -c 4 $i) != ?"ELF" ]]; then
+    if [ -h $i ] || [ ! -f $i ] || [[ $(head -c 4 $i) != ?"ELF" ]]; then
         continue
     fi
     filename=$(basename $i)
@@ -94,7 +95,7 @@ if test -z $ELF; then
     elif test ${#MATCHED_ELF[@]} -gt 1; then
         echo "[X] Multiple ELFs are found:"
         for i in ${MATCHED_ELF[@]}; do
-            echo "- $i"
+            echo " - $i"
         done
         error "[X] Please use option \"-a <elf>\" to specify one."
     else
@@ -108,7 +109,7 @@ if test -z $LIBC; then
     elif test ${#MATCHED_LIBC[@]} -gt 1; then
         echo "[X] Multiple LIBCs are found:"
         for i in ${MATCHED_LIBC[@]}; do
-            echo "- $i"
+            echo " - $i"
         done
         error "[X] Please use option \"-b <libc>\" to specify one."
     else
@@ -116,20 +117,20 @@ if test -z $LIBC; then
         echo "[O] Decided LIBC: $LIBC"
     fi
 fi
-if test -z $LD; then
-    if test ${#MATCHED_LD[@]} -eq 0; then
-        error "[X] Failed to match LD. Please use option \"-c <ld>\" to specify one."
-    elif test ${#MATCHED_LD[@]} -gt 1; then
-        echo "[X] Multiple LDs are found:"
-        for i in ${MATCHED_LD[@]}; do
-            echo "- $i"
-        done
-        error "[X] Please use option \"-c <ld>\" to specify one."
-    else
-        LD=${MATCHED_LD[0]}
-        echo "[O] Decided LD: $LD"
-    fi
-fi
+# if test -z $LD; then
+#     if test ${#MATCHED_LD[@]} -eq 0; then
+#         error "[X] Failed to match LD. Please use option \"-c <ld>\" to specify one."
+#     elif test ${#MATCHED_LD[@]} -gt 1; then
+#         echo "[X] Multiple LDs are found:"
+#         for i in ${MATCHED_LD[@]}; do
+#             echo " - $i"
+#         done
+#         error "[X] Please use option \"-c <ld>\" to specify one."
+#     else
+#         LD=${MATCHED_LD[0]}
+#         echo "[O] Decided LD: $LD"
+#     fi
+# fi
 
 # Find correct glibc version
 VERSION_STRING=$(strings $LIBC | grep '2\.[0-9][0-9]-[0-9]ubuntu[0-9\.]*' -o) 
@@ -151,48 +152,49 @@ BUILD="${VERSION_STRING#*-}_$LIBC_ARCH"
 # TARGET_ELF="$TARGET_DIR./easy_heap"
 echo "[O] Glibc version: $VERSION"
 echo "[O] Glibc build: $BUILD"
-exit 0
 
 # Get unstripped libc
 echo "[O] Getting unstripped libc"
 GLIBC_DIR=("${MAIN_DIR}glibc-all-in-one/${GLIBC_DIR}libs/$VERSION-$BUILD/")
 if [ ! -d $GLIBC_DIR ]; then
     echo "[X] Glibc path of target version ($VERSION-$BUILD) doesn't exist."
-    echo "[X] Expected path: $GLIBC_DIR."
-    exit
+    error "[X] Expected path: $GLIBC_DIR."
 fi
 UNSTRIPPED_LIBC=("${GLIBC_DIR}.unstripped/libc-$VERSION.so")
 if [ ! -f $UNSTRIPPED_LIBC ]; then
     echo "[X] Target stripped libc ($VERSION-$BUILD) doesn't exist."
-    echo "[X] Expected path: $UNSTRIPPED_LIBC."
-    exit 1
+    error "[X] Expected path: $UNSTRIPPED_LIBC."
 fi
 UNSTRIPPED_LD=("${GLIBC_DIR}.unstripped/ld-$VERSION.so")
 if [ ! -f $UNSTRIPPED_LD ]; then
     echo "[X] Target interpreter ($VERSION-$BUILD) doesn't exist."
-    echo "[X] Expected path: $UNSTRIPPED_LD."
-    exit 1
+    error "[X] Expected path: $UNSTRIPPED_LD."
 fi
-TARGET_LIBC_LINK=("./libc-$VERSION.so")
-TARGET_LD_LINK=("./ld-$VERSION.so")
-ln $TARGET_LIBC_LINK $UNSTRIPPED_LIBC
-ln $TARGET_LD_LINK $UNSTRIPPED_LD
-patchelf --add-needed $TARGET_LIBC_LINK --set-interpreter $TARGET_LD_LINK $TARGET_ELF
+TARGET_LIBC_LINK=("./libc.so.6")
+TARGET_LD_LINK=("./ld-linux-x86-64.so.2")
+ln -s -f $UNSTRIPPED_LIBC $TARGET_LIBC_LINK
+ln -s -f $UNSTRIPPED_LD $TARGET_LD_LINK
+# for i in $(patchelf --print-needed $ELF); do
+#     patchelf --remove-needed $i $ELF
+# done
+patchelf --add-needed $TARGET_LIBC_LINK --set-interpreter $TARGET_LD_LINK $ELF
+chmod 755 $ELF
 echo "[O] Successfilly untripped and patched the glibc."
 
 # Link glibc source code
-COMPILATION_DIR=$(readelf --string-dump=.debug_str "./libc-$VERSION.so" | grep "glibc-$VERSION" -m 1)
-COMPILATION_DIR=${COMPILATION_DIR#*']  /'}
-COMPILATION_DIR="${COMPILATION_DIR%$(echo "glibc-$VERSION/")*}"
-COMPILATION_DIR="./$COMPILATION_DIR"
+COMPILATION_DIR=$(readelf -Wwi "./libc-$VERSION.so" | grep DW_AT_comp_dir -m 1)
+COMPILATION_DIR=${COMPILATION_DIR#*'/build/'}
+COMPILATION_DIR="${COMPILATION_DIR%$(echo "/glibc-$VERSION/")*}"
+COMPILATION_DIR="./build/$COMPILATION_DIR/"
+echo $COMPILATION_DIR
 mkdir -p $COMPILATION_DIR
-GLIBC_SOURCE_DIR=("$MAIN_DIR""glibc-source-all/glibc-$VERSION/")
+GLIBC_SOURCE_DIR=("${MAIN_DIR}glibc-source-all/glibc-$VERSION/")
 if [ ! -d $GLIBC_SOURCE_DIR ]; then
     echo "[X] Glibc source code path of target version ($VERSION-$BUILD) doesn't exist."
     echo "[X] Expected path: $GLIBC_SOURCE_DIR."
     exit
 fi
 echo "[O] Linking global glibc source code from $COMPILATION_DIR."
-ln -s "$GLIBC_SOURCE_DIR" "$COMPILATION_DIR"
-echo "[O] Successfully linked source code at ""$COMPILATION_DIR""glibc-$VERSION/."
+ln -s $GLIBC_SOURCE_DIR $COMPILATION_DIR
+echo "[O] Successfully linked source code at ""${COMPILATION_DIR}glibc-$VERSION/."
 
