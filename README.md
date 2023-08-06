@@ -6,7 +6,7 @@ Let me help you initialize your PWN solution: automatically unstrip glibc and ge
 
 ## Installation
 
-Installation requires Internet connection.
+Internet connection is required for installation.
 
 ```
 cd ~/
