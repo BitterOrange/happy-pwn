@@ -16,6 +16,7 @@ Internet connection is required for installation.
 Before installation, it is necessary to prepare dependency packages with apt:
 
 ```shell
+sudo apt update
 sudo apt install wget patchelf binutils elfutils python3 tar
 ```
 
