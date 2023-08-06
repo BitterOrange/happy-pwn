@@ -15,7 +15,7 @@ cd ./happy-pwn/
 ./setup
 ```
 
-**AND THEN, DON'T  FORGET** to add the directory `~/happy-pwn/bin/` to your `PATH` variable.
+**AND THEN, NEVER FORGET** to add the directory `~/happy-pwn/bin/` to your environment variable `PATH`.
 
 ## Usage
 
