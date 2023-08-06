@@ -195,7 +195,7 @@ echo "[O] Glibc version: $VERSION"
 echo "[O] Glibc build: $BUILD"
 
 # Get unstripped libc
-echo "[O] Getting unstripped libc"
+echo "[!] Getting unstripped glibc..."
 GLIBC_DIR=("${MAIN_DIR}glibc-all-in-one/${GLIBC_DIR}libs/$VERSION-$BUILD/")
 if [ ! -d $GLIBC_DIR ]; then
     echo "[X] Glibc path of target version ($VERSION-$BUILD) doesn't exist."
@@ -228,29 +228,38 @@ patchelf --add-needed $TARGET_LIBC_LINK --set-interpreter $TARGET_LD_LINK $ELF
 chmod 755 $ELF
 echo "[O] Successfully untripped and patched the glibc."
 
-# Link glibc source code
-echo "[!] Finding glibc compilation directory ..."
+# Locate target directory of the source code
+echo "[!] Finding glibc compilation directory..."
 COMPILATION_DIRS=$(readelf -Wwi $UNSTRIPPED_LIBC | grep DW_AT_comp_dir | grep -E ':(?:[^:\r\n]*\()?([^)\r\n\s]+)\s*$' -o | sed -e 's/^[: \t]*//')
-echo "[!] Calculating ..."
-# for directory in $COMPILATION_DIR; do
-#     echo $directory
-# done
-COMPILATION_ROOT=$(longest_common_prefix $COMPILATION_DIRS)
-echo $COMPILATION_ROOT
-exit 0
 
-COMPILATION_DIR=${COMPILATION_DIR#*'/build/'}
-COMPILATION_DIR="${COMPILATION_DIR%$(echo "/glibc-$VERSION/")*}"
-COMPILATION_DIR="./build/$COMPILATION_DIR/"
-echo $COMPILATION_DIR
-mkdir -p $COMPILATION_DIR
+COMPILATION_ROOT=$(longest_common_prefix $COMPILATION_DIRS)
+echo "[!] Glibc compilation directory: $COMPILATION_ROOT"
+for directory_name in $(echo $COMPILATION_ROOT | tr '/' '\n'); do
+    if test $directory_name = ".."; then
+        echo "[X] Dicectory contains \"upward\" (../), which is probably escape your solution and harm your system."
+        error "[X] Please build your source code reference manually."
+    fi
+done
+if test ${COMPILATION_ROOT:0:1} = '.'; then
+    COMPILATION_ROOT=${COMPILATION_ROOT:1}
+fi
+if test ${COMPILATION_ROOT:0:1} = '/'; then
+    COMPILATION_ROOT=${COMPILATION_ROOT:1}
+fi
+COMPILATION_ROOT="./$COMPILATION_ROOT"
+echo "[O] Target compilation directory: $COMPILATION_ROOT"
+mkdir -p $COMPILATION_ROOT
+
 GLIBC_SOURCE_DIR=("${MAIN_DIR}glibc-source-all/glibc-$VERSION/")
 if [ ! -d $GLIBC_SOURCE_DIR ]; then
     echo "[X] Glibc source code path of target version ($VERSION-$BUILD) doesn't exist."
     echo "[X] Expected path: $GLIBC_SOURCE_DIR."
     exit
 fi
-echo "[O] Linking global glibc source code from $COMPILATION_DIR."
-ln -s -f $GLIBC_SOURCE_DIR $COMPILATION_DIR
-echo "[O] Successfully linked source code at ""${COMPILATION_DIR}glibc-$VERSION/."
+
+# Link glibc source code
+echo "[O] Linking global glibc source code from \"$GLIBC_SOURCE_DIR\"..."
+ln -s -f $GLIBC_SOURCE_DIR*/ $COMPILATION_ROOT
+
+echo "[O] Successfully linked source code at \"$COMPILATION_ROOT\"."
 
