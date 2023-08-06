@@ -260,6 +260,9 @@ fi
 # Link glibc source code
 echo "[O] Linking global glibc source code from \"$GLIBC_SOURCE_DIR\"..."
 ln -s -f $GLIBC_SOURCE_DIR*/ $COMPILATION_ROOT
+if test $? -ne 0; then
+    error "[O] Failed to link source code."
+fi
 
 echo "[O] Successfully linked source code at \"$COMPILATION_ROOT\"."
 
