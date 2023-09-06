@@ -1,6 +1,6 @@
 [submodule "glibc-all-in-one"]
 	path = glibc-all-in-one
-	url = git@github.com:BitterOrange/glibc-all-in-one.git
+	url = https://github.com/BitterOrange/glibc-all-in-one.git
 [submodule "glibc-source-all"]
 	path = glibc-source-all
-	url = git@github.com:BitterOrange/glibc-source-all.git
+	url = https://github.com/BitterOrange/glibc-source-all.git
