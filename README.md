@@ -24,7 +24,7 @@ And then begin installation:
 
 ```shell
 cd ~/
-git clone --recurse-submodules git@github.com:BitterOrange/happy-pwn.git
+git clone --recurse-submodules https://github.com/BitterOrange/happy-pwn.git
 cd ./happy-pwn/
 ./setup
 ```
